@@ -1,6 +1,73 @@
-﻿namespace BancoSENAIAPI.Controllers
+﻿using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics.CodeAnalysis;
+
+namespace BancoSENAIAPI.Controllers
 {
-    public class Class
+    [ApiController]
+    [Route("api/v1/[controller]")]
+    public class DocumentoController : ControllerBase
     {
+        private readonly string _caminhoRaiz = Path.Combine(Directory.GetCurrentDirectory(), "ClienteArquivos");
+        private static List<Models.DocumentoMetadado> _documentosMetadados = new List<Models.DocumentoMetadado>();
+        private static int _nextId = 1;
+
+        [HttpPost("upload/{codigoCliente}")]
+        public async Task<IActionResult> AnexarArquivo(int codigoCliente, IFormFile arquivo)
+        {
+            // 1. Validação de segurança do arquivo enviado
+            if (arquivo == null || arquivo.Length == 0)
+            {
+                return BadRequest("Nenhum arquivo foi enviado.");
+            }
+
+            // 2. Garantia da existência do diretório do cliente
+            string pastaCliente = Path.Combine(_caminhoRaiz, codigoCliente.ToString());
+            if (!Directory.Exists(pastaCliente))
+            {
+                Directory.CreateDirectory(pastaCliente);
+            }
+
+            // 3. Formatação e geração do nome único (GUID)
+            string extensao = Path.GetExtension(arquivo.FileName);
+            string nomeOriginal = Path.GetFileNameWithoutExtension(arquivo.FileName);
+            string novoNome = $"{codigoCliente}_{nomeOriginal}_{Guid.NewGuid()}{extensao}";
+            string caminhoFinal = Path.Combine(pastaCliente, novoNome);
+
+            // 4. Gravação física do arquivo no servidor
+            using (var stream = new FileStream(caminhoFinal, FileMode.Create))
+            {
+                await arquivo.CopyToAsync(stream);
+            }
+
+            // 5. Registro do metadado na memória
+            var documentoMetadados = new Models.DocumentoMetadado
+            {
+                Id = _nextId++,
+                Name = nomeOriginal,
+                Extensao = extensao,
+                Caminho = caminhoFinal,
+                CodigoCliente = codigoCliente
+            };
+
+            _documentosMetadados.Add(documentoMetadados);
+
+            return Ok(new { mensagem = "Documento anexado com sucesso!", arquivoSalvo = novoNome });
+        }
+        [HttpGet("v1/documento/listar/{codigoCliente}")]
+
+        public IActionResult listagem(int codigoCliente)
+        {
+            var documentos = _documentosMetadados
+                .Where(d => d.CodigoCliente == codigoCliente)
+                .ToList();
+
+            if (!documentos.Any())
+            {
+                return NotFound(new { mensagem = $"Nenhum documento foi encontrado, verifique seu cadastro. {codigoCliente}" });
+            }
+
+            return Ok(documentos);
+        }
+
     }
 }

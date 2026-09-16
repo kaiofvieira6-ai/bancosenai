@@ -1,17 +1,14 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography.X509Certificates;
+using System.Diagnostics.CodeAnalysis;
 
 namespace BancoSENAIAPI.Controllers
 {
-    public class DocumentoController : Controller
+    [ApiController]
+    [Route("api/v1/[controller]")]
+    public class DocumentoController : ControllerBase
     {
-        private readonly string _caminhoRaiz = Path.Combine(
-            Directory.GetCurrentDirectory(), "ClienteArquivos"
-            );
-
+        private readonly string _caminhoRaiz = Path.Combine(Directory.GetCurrentDirectory(), "ClienteArquivos");
         private static List<Models.DocumentoMetadado> _documentosMetadados = new List<Models.DocumentoMetadado>();
-
         private static int _nextId = 1;
 
         [HttpPost("upload/{codigoCliente}")]
@@ -68,9 +65,9 @@ namespace BancoSENAIAPI.Controllers
 
             return Ok(new { mensagem = "Documento anexado com sucesso", arquivoSalvo = novoNome });
         }
+        [HttpGet("v1/documento/listar/{codigoCliente}")]
 
-        [HttpGet("listar/{codigoCliente}")]
-        public IActionResult ListarArquivo(int codigoCliente)
+        public IActionResult listagem(int codigoCliente)
         {
             var documentos = _documentosMetadados
                 .Where(d => d.CodigoCliente == codigoCliente)
@@ -78,42 +75,45 @@ namespace BancoSENAIAPI.Controllers
 
             if (!documentos.Any())
             {
-                return NotFound(new { mensagem = $"Nenhum documento encontrado para o cliente {codigoCliente}." });
+                return NotFound(new { mensagem = $"Nenhum documento foi encontrado, verifique seu cadastro. {codigoCliente}" });
             }
 
             return Ok(documentos);
         }
 
-        [HttpGet("documento/download/{id}")]
 
-         public IActionResult Download(int id)
+        [HttpGet("v1/docimento/download/{id}")]
+
+        public async Task<IActionResult> Download(int id)
         {
             var documento = _documentosMetadados.FirstOrDefault(d => d.Id == id);
 
             if (documento == null)
             {
-                return NotFound("Documento não encontrado.");
+                return NotFound(new { mensagem = "Documento não encontrado." });
             }
 
             if (!System.IO.File.Exists(documento.Caminho))
             {
-                return NotFound("Arquivo físico não foi encontrado no servidor.");
+                return NotFound(new { mensagem = "O arquivo físico não foi encontrado no servidor." });
             }
 
-            byte[] fileBytes = System.IO.File.ReadAllBytes(documento.Caminho);
-            
-            return File(fileBytes, "application/octet-stream", documento.Extensao);
+            byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(documento.Caminho);
+
+            string nomeArquivoCompleto = $"{documento.Name}{documento.Extensao}";
+
+            return File(fileBytes, "application/octet-stream", nomeArquivoCompleto);
         }
 
-        [HttpDelete("excluir/{id}")]
 
-        public IActionResult Delete(int id)
+        [HttpDelete("excluir/{id}")]
+        public IActionResult Excluir(int id)
         {
             var documento = _documentosMetadados.FirstOrDefault(d => d.Id == id);
 
             if (documento == null)
             {
-                return NotFound("Documento não encontrado.");
+                return NotFound(new { mensagem = "Documento não encontrado." });
             }
 
             if (System.IO.File.Exists(documento.Caminho))
@@ -123,8 +123,7 @@ namespace BancoSENAIAPI.Controllers
 
             _documentosMetadados.Remove(documento);
 
-            return Ok(new { mensagem = "Documento e arquivo físico excluídos com sucesso." });
+            return Ok(new { mensagem = "Documento e arquivo removidos com sucesso!" });
         }
-        
     }
 }

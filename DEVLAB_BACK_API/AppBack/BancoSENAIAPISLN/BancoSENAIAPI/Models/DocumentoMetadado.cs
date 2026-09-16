@@ -1,11 +1,14 @@
 ﻿namespace BancoSENAIAPI.Models
 {
-    public class DocumentoMetadado
+    internal class DocumentoMetadado
     {
-        public int Id {  get; set; }
-        public string Name { get; set;}
-        public string Extensao { get; set;}
-        public string Caminho { get; set;}
-        public int CodigoCliente { get; set;}
+        public int Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+        public string Extensao { get; set; } = string.Empty;
+
+        public string Caminho { get; set; } = string.Empty;
+
+        public int CodigoCliente { get; set; }
     }
 }

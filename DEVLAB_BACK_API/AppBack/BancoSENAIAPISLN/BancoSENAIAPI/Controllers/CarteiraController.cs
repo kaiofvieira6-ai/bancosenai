@@ -9,45 +9,10 @@ namespace BancoSENAIAPI.Controllers
     {
         private static List<Carteira> _carteiras = new List<Carteira>
         {
-            new Carteira
-            {
-                NumeroCarteira = 1,
-                NomeCarteira = "Agro",
-                ApetiteCarteira = 100000
-            },
-
-            new Carteira
-            {
-                NumeroCarteira = 2,
-                NomeCarteira = "Varejo",
-                ApetiteCarteira = 15000000
-            },
-
-            new Carteira
-            {
-                NumeroCarteira = 3,
-                NomeCarteira = "Atacado",
-                ApetiteCarteira = 20000000
-            }
-
-
+            new Carteira { NumeroCarteira = 1, NomeCarteira = "Agro", ApetiteCarteira = 1000000.00m },
+            new Carteira { NumeroCarteira = 2, NomeCarteira = "Atacado", ApetiteCarteira = 1500000.00m },
+            new Carteira { NumeroCarteira = 3, NomeCarteira = "Varejo", ApetiteCarteira = 2000000.00m }
         };
-
-        // GET: api/Carteira/1
-        [HttpGet("{numeroCarteira}")]
-        public IActionResult Get(int numeroCarteira)
-        {
-            var carteira = _carteiras.FirstOrDefault(
-                c => c.NumeroCarteira == numeroCarteira
-            );
-
-            if (carteira == null)
-            {
-                return NotFound("Carteira não encontrada.");
-            }
-
-            return Ok(carteira);
-        }
 
         [HttpGet]
         public IActionResult ListarTodas()
@@ -59,53 +24,51 @@ namespace BancoSENAIAPI.Controllers
         public IActionResult Cadastrar([FromBody] Carteira novaCarteira)
         {
             if (_carteiras.Any(c => c.NumeroCarteira == novaCarteira.NumeroCarteira))
-            {
                 return BadRequest(new { message = "Este número de carteira já existe." });
-            }
 
             if (novaCarteira.ApetiteCarteira < 0)
-            {
-                return BadRequest(new { message = "O apetite da carteira não pode ser negativo." });
-            }
+                return BadRequest(new { message = "O valor do apetite da carteira deve ser maior ou igual a zero." });
 
             _carteiras.Add(novaCarteira);
-
             return Created("", novaCarteira);
         }
-        [HttpPut("{numero}")]
-        public IActionResult Atualizar(int numero, [FromBody] Carteira carteiraAtualizada)
+
+        [HttpGet("{codigo}")]
+        public IActionResult ConsultarPorCodigo(int codigo)
         {
-            var carteira = _carteiras.FirstOrDefault(c => c.NumeroCarteira == numero);
+            var carteira = _carteiras.FirstOrDefault(c => c.NumeroCarteira == codigo);
 
             if (carteira == null)
-            {
                 return NotFound(new { message = "Carteira não encontrada." });
-            }
-
-            if (carteiraAtualizada.ApetiteCarteira < 0)
-            {
-                return BadRequest(new { message = "O apetite da carteira não pode ser negativo." });
-            }
-
-            carteira.NomeCarteira = carteiraAtualizada.NomeCarteira;
-            carteira.ApetiteCarteira = carteiraAtualizada.ApetiteCarteira;
 
             return Ok(carteira);
         }
-        [HttpDelete("{numero}")]
-        public IActionResult Apagar(int numero)
-        {
-            var carteira = _carteiras.FirstOrDefault(c => c.NumeroCarteira == numero);
 
-            if (carteira == null)
-            {
-                return NotFound(new { message = "Carteira não encontrada." });
-            }
+        [HttpPut("{codigo}")]
+        public IActionResult Alterar(int codigo, [FromBody] Carteira carteiraAtualizada)
+        {
+            var carteiraExistente = _carteiras.FirstOrDefault(c => c.NumeroCarteira == codigo);
+
+            if (carteiraExistente == null) return NotFound();
+
+            if (carteiraAtualizada.ApetiteCarteira < 0)
+                return BadRequest(new { message = "O valor do apetite da carteira deve ser maior ou igual a zero." });
+
+            carteiraExistente.NomeCarteira = carteiraAtualizada.NomeCarteira;
+            carteiraExistente.ApetiteCarteira = carteiraAtualizada.ApetiteCarteira;
+
+            return NoContent();
+        }
+
+        [HttpDelete("{codigo}")]
+        public IActionResult Excluir(int codigo)
+        {
+            var carteira = _carteiras.FirstOrDefault(c => c.NumeroCarteira == codigo);
+
+            if (carteira == null) return NotFound();
 
             _carteiras.Remove(carteira);
-
-            return Ok(new { message = "Carteira apagada com sucesso." });
+            return Ok(new { message = "Carteira excluída com sucesso." });
         }
     }
-        
 }

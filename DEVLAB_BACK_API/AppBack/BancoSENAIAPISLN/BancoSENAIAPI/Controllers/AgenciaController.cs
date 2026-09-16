@@ -28,7 +28,6 @@ namespace BancoSENAIAPI.Controllers
                 return BadRequest(new { message = "Este número de agência já existe." });
 
             _agencias.Add(novaAgencia);
-            // Retorna Status 201 Created conforme boas práticas REST [6, 8]
             return Created("", novaAgencia);
         }
 

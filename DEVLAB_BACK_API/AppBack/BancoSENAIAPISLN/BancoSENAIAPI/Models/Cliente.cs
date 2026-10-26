@@ -2,14 +2,14 @@
 {
     public class Cliente
     {
-        public int Codigo { get; set; }
+        public int CodigoCliente { get; set; }
 
-        public string Nome { get; set; }
+        public string NomeCliente { get; set; }
 
-        public string Cpf { get; set; }
+        public string CPF { get; set; }
 
         public int NumeroAgencia { get; set; }
 
-        public decimal Saldo { get; set; } = 0.0m;
+        public decimal SaldoTotal { get; set; } = 0.0m;
     }
 }

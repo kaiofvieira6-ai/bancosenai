@@ -1,4 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using BancoSENAIAPI.Data;
+using BancoSENAIAPI.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace BancoSENAIAPI.Controllers
 {
@@ -6,89 +9,106 @@ namespace BancoSENAIAPI.Controllers
     [Route("api/v1/[controller]")]
     public class DocumentoController : ControllerBase
     {
-
+        private readonly AppDbContext _context;
         private readonly string _caminhoRaiz = Path.Combine(Directory.GetCurrentDirectory(), "ClienteArquivos");
-        private static List<Models.DocumentoMetadados> _documentosMetadados = new List<Models.DocumentoMetadados>();
-        private static int _nextId = 1;
+        public DocumentoController(AppDbContext context)
+        {
+            _context = context;
+        }
 
         [HttpPost("upload/{codigoCliente}")]
         public async Task<IActionResult> AnexarArquivo(int codigoCliente, IFormFile arquivo)
         {
             if (arquivo == null || arquivo.Length == 0)
-                return BadRequest("Nenhum arquivo foi enviado.");
-
+            {
+                return BadRequest("Nenhum arquivo foi enviado");
+            }
+            if (arquivo.Length > 2 * 1024 * 1024)
+            {
+                return BadRequest("O arquivo não pode ter mais de 2 MB.");
+            }
             string pastaCliente = Path.Combine(_caminhoRaiz, codigoCliente.ToString());
 
             if (!Directory.Exists(pastaCliente))
+            {
                 Directory.CreateDirectory(pastaCliente);
-
+            }
             string extensao = Path.GetExtension(arquivo.FileName);
-            string nomeOriginal = Path.GetFileNameWithoutExtension(arquivo.FileName);
-            string novoNome = $"{codigoCliente}_{nomeOriginal}_{Guid.NewGuid()}{extensao}";
+            string[] extensoesPermitidas = { ".pdf", ".jpg", ".png" };
 
+            if (!extensoesPermitidas.Contains(extensao.ToLower()))
+            {
+                return BadRequest("Extensão de arquivo não permitida. Apenas .pdf, .jpg e .png são aceitos.");
+            }
+            string nomeOriginal = Path.GetFileNameWithoutExtension(arquivo.FileName);
+            string novoNome = $"{codigoCliente}{nomeOriginal}{Guid.NewGuid()}{extensao}";
             string caminhoFinal = Path.Combine(pastaCliente, novoNome);
 
             using (var stream = new FileStream(caminhoFinal, FileMode.Create))
             {
                 await arquivo.CopyToAsync(stream);
             }
-
             var documentoMetadados = new Models.DocumentoMetadados
             {
-                Id = _nextId++,
-                Nome = nomeOriginal,
-                Extensao = extensao,
+
+                Name = nomeOriginal,
+                Extensão = extensao,
                 Caminho = caminhoFinal,
-                CodigoCliente = codigoCliente
+                CodigoCliente = codigoCliente,
             };
+            _context.DocumentoMetadados.Add(documentoMetadados);
+            await _context.SaveChangesAsync();
+            return Ok(new { mensagem = "Documento anexado com sucesso", arquivoSalvo = novoNome });
 
-            _documentosMetadados.Add(documentoMetadados);
-
-            return Ok(new
-            {
-                mensagem = "Documento anexado com sucesso!",
-                arquivoSalvo = novoNome
-            });
         }
-
         [HttpGet("listar/{codigoCliente}")]
-        public IActionResult ListarDocumentos(int codigoCliente)
+        public async Task<IActionResult> listarDocumentos(int codigoCliente)
         {
-            var documentos = _documentosMetadados.Where(d => d.CodigoCliente == codigoCliente).ToList();
+            var documentos = await _context.DocumentoMetadados
+            .Where(d => d.CodigoCliente == codigoCliente)
+            .ToListAsync();
 
             if (!documentos.Any())
-                return NotFound(new { message = "Nenhum documento encontrado para este cliente." });
-
+            {
+                return NotFound("Nenhum Documento foi encontrado para este cliente");
+            }
             return Ok(documentos);
         }
-
         [HttpGet("download/{id}")]
-        public IActionResult DownloadDocumento(int id)
+        public async Task<IActionResult> DownloadDocumentos(int id)
         {
-            var documento = _documentosMetadados.FirstOrDefault(d => d.Id == id);
+            var documentos = await _context.DocumentoMetadados.FirstOrDefaultAsync(d => d.ID == id);
 
-            if (documento == null)
-                return NotFound(new { message = "Documento não encontrado." });
+            if (documentos == null)
+            {
+                return NotFound("Documento não encontrado");
+            }
+            if (!System.IO.File.Exists(documentos.Caminho))
+            {
+                return NotFound("Arquivo não encontrado no servidor.");
+            }
 
-            var caminhoArquivo = documento.Caminho;
-            var nomeArquivo = documento.Nome + documento.Extensao;
+            byte[] arquivo = await System.IO.File.ReadAllBytesAsync(documentos.Caminho);
+            return File(arquivo, "application/octet-stream", documentos.Name + documentos.Extensão);
 
-            var fileBytes = System.IO.File.ReadAllBytes(caminhoArquivo);
-            return File(fileBytes, "application/octet-stream", nomeArquivo);
         }
-
         [HttpDelete("excluir/{id}")]
-        public IActionResult ExcluirDocumento(int id)
+        public async Task<IActionResult> ExcluirDocumentos(int id)
         {
-            var documento = _documentosMetadados.FirstOrDefault(d => d.Id == id);
+            var documento = await _context.DocumentoMetadados.FirstOrDefaultAsync(d => d.ID == id);
 
             if (documento == null)
-                return NotFound(new { message = "Documento não encontrado." });
+            {
+                return NotFound("Arquivo não encontrado");
+            }
+            if (System.IO.File.Exists(documento.Caminho))
+                System.IO.File.Delete(documento.Caminho);
+            _context.DocumentoMetadados.Remove(documento);
 
-            _documentosMetadados.Remove(documento);
-            System.IO.File.Delete(documento.Caminho);
+            await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Documento excluído com sucesso." });
+            return Ok("Documento Excluído com sucesso.");
         }
+
     }
 }

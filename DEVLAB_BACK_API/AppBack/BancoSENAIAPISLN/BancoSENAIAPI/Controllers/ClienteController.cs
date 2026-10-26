@@ -1,6 +1,7 @@
 ﻿using BancoSENAIAPI.Models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Cors.Infrastructure;
+using BancoSENAIAPI.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace BancoSENAIAPI.Controllers
 {
@@ -8,72 +9,82 @@ namespace BancoSENAIAPI.Controllers
     [Route("api/v1/[controller]")]
     public class ClienteController : ControllerBase
     {
-        private static List<Models.Cliente> _clientes = new List<Models.Cliente>()
+        private readonly AppDbContext _context;
+
+        public ClienteController(AppDbContext context)
         {
-            new Cliente() { Codigo = 1, Nome = "João Silva", Cpf = "11849572070", NumeroAgencia = 1001, Saldo = 1500.00m },
-        };
-        private static int _nextId = 2;
+            _context = context;
+        }
 
         [HttpGet]
-        public IActionResult ListarTodos()
+        public async Task<IActionResult> ListarTodas()
         {
-            return Ok(_clientes);
+            var clientes = await _context.Cliente.ToListAsync();
+
+            return Ok(clientes);
         }
 
         [HttpPost]
-        public IActionResult Cadastrar([FromBody] Cliente novoCliente)
+        public async Task<IActionResult> Cadastrar([FromBody] Cliente novoCliente)
         {
-            if (string.IsNullOrWhiteSpace(novoCliente.Nome)) return BadRequest("O nome do cliente é obrigatório.");
-            if (string.IsNullOrWhiteSpace(novoCliente.Cpf)) return BadRequest("O CPF do cliente é obrigatório.");
+            if (string.IsNullOrWhiteSpace(novoCliente.NomeCliente))
+                return BadRequest(new { message = "O nome do cliente é obrigatório." });
 
-            // Remove todos os caracteres não numéricos do CPF
-            string cpf = new string(novoCliente.Cpf.Where(char.IsDigit).ToArray());
+            if (string.IsNullOrWhiteSpace(novoCliente.CPF))
+                return BadRequest(new { message = "O CPF é obrigatório." });
 
-            novoCliente.Cpf = cpf;
-            novoCliente.Codigo = _nextId++;
+            if (novoCliente.NumeroAgencia == 0)
+                novoCliente.NumeroAgencia = 10;
+            _context.Cliente.Add(novoCliente);
 
-            _clientes.Add(novoCliente);
+            await _context.SaveChangesAsync();
 
-            // Retorna Status 201 Created conforme boas práticas REST
             return Created("", novoCliente);
         }
 
         [HttpGet("{codigo}")]
-        public IActionResult ConsultarPorCodigo(int codigo)
+        public async Task<IActionResult> ConsultarPorCodigo(int codigo)
         {
-            var cliente = _clientes.FirstOrDefault(a => a.Codigo == codigo);
+            var cliente = await _context.Cliente.FirstOrDefaultAsync(c => c.CodigoCliente == codigo);
 
             if (cliente == null)
-                return NotFound(new { message = "Cliente não encontrado." }); // Status 404
+                return NotFound(new { message = "Cliente não encontrado." });
 
-            return Ok(cliente); // Status 200 OK
+            return Ok(cliente);
         }
 
         [HttpPut("{codigo}")]
-        public IActionResult Alterar(int codigo, [FromBody] Cliente clienteAtualizado)
+        public async Task<IActionResult> Alterar(int codigo, [FromBody] Cliente clienteAtualizado)
         {
-            var clienteExistente = _clientes.FirstOrDefault(a => a.Codigo == codigo);
+            var clienteExistente = await _context.Cliente.FirstOrDefaultAsync(c => c.CodigoCliente == codigo);
 
-            if (clienteExistente == null) return NotFound(new { message = "Cliente não encontrado" });
+            if (clienteExistente == null) return NotFound();
 
-            clienteExistente.Nome = clienteAtualizado.Nome;
-            clienteExistente.Cpf = clienteAtualizado.Cpf;
+            if (string.IsNullOrWhiteSpace(clienteAtualizado.NomeCliente))
+                return BadRequest(new { message = "O nome do cliente é obrigatório." });
+
+            if (string.IsNullOrWhiteSpace(clienteAtualizado.CPF))
+                return BadRequest(new { message = "O CPF é obrigatório." });
+
+            clienteExistente.NomeCliente = clienteAtualizado.NomeCliente;
+            clienteExistente.CPF = clienteAtualizado.CPF;
             clienteExistente.NumeroAgencia = clienteAtualizado.NumeroAgencia;
-            clienteExistente.Saldo = clienteAtualizado.Saldo;
+            clienteExistente.SaldoTotal = clienteAtualizado.SaldoTotal;
 
-            // Retorna Status 204 No Content para atualizações bem-sucedidas
+            await _context.SaveChangesAsync();
+
             return NoContent();
         }
 
         [HttpDelete("{codigo}")]
-        public IActionResult Excluir(int codigo)
+        public async Task<IActionResult> Excluir(int codigo)
         {
-            var cliente = _clientes.FirstOrDefault(c => c.Codigo == codigo);
+            var cliente = await _context.Cliente.FirstOrDefaultAsync(c => c.CodigoCliente == codigo);
 
-            if (cliente == null) return NotFound(new { message = "Cliente não encontrado." });
+            if (cliente == null) return NotFound();
 
-            _clientes.Remove(cliente);
-            return Ok(new { message = "Cliente excluído com sucesso." }); // Status 200
+            _context.Cliente.Remove(cliente); await _context.SaveChangesAsync();
+            return Ok(new { message = "Cliente excluído com sucesso." });
         }
     }
 }
